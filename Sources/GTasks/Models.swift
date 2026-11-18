@@ -70,3 +70,37 @@ enum DueFormat {
     static var today: Date { Calendar.current.startOfDay(for: Date()) }
     static func inDays(_ n: Int) -> Date { Calendar.current.date(byAdding: .day, value: n, to: today)! }
 }
+
+// MARK: - Date sections
+
+enum DueBucket: Int, CaseIterable, Comparable {
+    case overdue, today, tomorrow, later, noDate
+
+    init(_ date: Date?) {
+        guard let date else { self = .noDate; return }
+        switch DueFormat.daysFromToday(date) {
+        case ..<0: self = .overdue
+        case 0: self = .today
+        case 1: self = .tomorrow
+        default: self = .later
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .overdue: "Overdue"
+        case .today: "Today"
+        case .tomorrow: "Tomorrow"
+        case .later: "Later"
+        case .noDate: "No date"
+        }
+    }
+
+    static func < (a: Self, b: Self) -> Bool { a.rawValue < b.rawValue }
+}
+
+struct TaskSection: Identifiable {
+    let bucket: DueBucket
+    var tasks: [GTask]
+    var id: Int { bucket.rawValue }
+}

@@ -98,14 +98,36 @@ final class TaskStore: ObservableObject {
         tasks = Self.ordered(fetched.filter { !completing.contains($0.id) })
     }
 
-    /// Google's "My order": sort by `position`, with subtasks directly under their parent.
+    /// Sorted by due date (overdue first, undated last), ties broken by Google's "My order".
+    /// Subtasks stay directly under their parent.
     static func ordered(_ items: [GTask]) -> [GTask] {
         let ids = Set(items.map(\.id))
-        let byPosition: (GTask, GTask) -> Bool = { ($0.position ?? "") < ($1.position ?? "") }
         let isChild: (GTask) -> Bool = { $0.parent.map(ids.contains) ?? false }
-        let top = items.filter { !isChild($0) }.sorted(by: byPosition)
+        let byPosition: (GTask, GTask) -> Bool = { ($0.position ?? "") < ($1.position ?? "") }
+        let byDue: (GTask, GTask) -> Bool = { a, b in
+            let da = a.dueDate ?? .distantFuture, db = b.dueDate ?? .distantFuture
+            return da != db ? da < db : byPosition(a, b)
+        }
+        let top = items.filter { !isChild($0) }.sorted(by: byDue)
         let children = Dictionary(grouping: items.filter(isChild), by: { $0.parent! })
         return top.flatMap { [$0] + (children[$0.id] ?? []).sorted(by: byPosition) }
+    }
+
+    /// Tasks grouped into Overdue / Today / Tomorrow / Later / No date.
+    /// Subtasks are placed in their parent's section.
+    var sections: [TaskSection] {
+        var result: [TaskSection] = []
+        var parentBucket: [String: DueBucket] = [:]
+        for task in tasks {
+            let bucket = task.parent.flatMap { parentBucket[$0] } ?? DueBucket(task.dueDate)
+            parentBucket[task.id] = bucket
+            if result.last?.bucket == bucket {
+                result[result.count - 1].tasks.append(task)
+            } else {
+                result.append(TaskSection(bucket: bucket, tasks: [task]))
+            }
+        }
+        return result
     }
 
     // MARK: Mutations
@@ -115,7 +137,7 @@ final class TaskStore: ObservableObject {
         do {
             let created = try await api.insert(listID: listID, title: title, due: due)
             guard listID == selectedListID else { return }
-            withAnimation { tasks.insert(created, at: 0) }
+            withAnimation { tasks = Self.ordered(tasks + [created]) }
         } catch { report(error) }
     }
 
@@ -164,6 +186,7 @@ final class TaskStore: ObservableObject {
             )
             replaceLocally(task.id) { $0 = updated }
         } catch { report(error) }
+        withAnimation { tasks = Self.ordered(tasks) }
     }
 
     func delete(_ task: GTask) async {
