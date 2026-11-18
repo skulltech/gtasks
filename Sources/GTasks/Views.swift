@@ -1,7 +1,6 @@
 import AppKit
 import ServiceManagement
 import SwiftUI
-import UniformTypeIdentifiers
 
 // MARK: - Root
 
@@ -12,7 +11,7 @@ struct RootView: View {
     var body: some View {
         Group {
             if auth.config == nil {
-                SetupView(auth: auth)
+                MissingConfigView()
             } else if !auth.isSignedIn {
                 SignInView(auth: auth)
             } else {
@@ -36,56 +35,22 @@ struct MenuBarLabel: View {
     }
 }
 
-// MARK: - Setup (OAuth client)
+// MARK: - Missing OAuth client (build problem, not a user flow)
 
-struct SetupView: View {
-    @ObservedObject var auth: AuthManager
-    @Local private var clientID = ""
-    @Local private var clientSecret = ""
-
+struct MissingConfigView: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Connect to Google Tasks").font(.title3.bold())
-            Text("GTasks talks to Google with your own OAuth client (type: **Desktop app**). Create one in Google Cloud Console with the Tasks API enabled, then import the downloaded JSON or paste the values below. The README has step-by-step instructions.")
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "exclamationmark.triangle").font(.system(size: 36)).foregroundStyle(.orange)
+            Text("No Google OAuth client bundled").font(.headline)
+            Text("Put the Desktop-app client JSON at Resources/client_secret.json and rebuild with scripts/build-app.sh.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button("Import client JSON…", action: importJSON)
-
-            VStack(spacing: 8) {
-                TextField("Client ID", text: $clientID)
-                SecureField("Client secret", text: $clientSecret)
-            }
-            .textFieldStyle(.roundedBorder)
-
-            if let err = auth.errorMessage {
-                Text(err).font(.caption).foregroundStyle(.red)
-            }
-
-            HStack {
-                Link("Open Cloud Console", destination: URL(string: "https://console.cloud.google.com/apis/credentials")!)
-                    .font(.callout)
-                Spacer()
-                Button("Save") { auth.saveConfig(clientID: clientID, clientSecret: clientSecret) }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(clientID.trimmingCharacters(in: .whitespaces).isEmpty
-                              || clientSecret.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
+                .multilineTextAlignment(.center)
             Spacer()
             QuitButton()
         }
         .padding(20)
-    }
-
-    private func importJSON() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.json]
-        panel.allowsMultipleSelection = false
-        NSApp.activate(ignoringOtherApps: true)
-        if panel.runModal() == .OK, let url = panel.url {
-            auth.importConfig(from: url)
-        }
     }
 }
 
@@ -117,8 +82,6 @@ struct SignInView: View {
             }
             Spacer()
             HStack {
-                Button("Use a different OAuth client") { auth.resetConfig() }
-                    .buttonStyle(.link).font(.caption)
                 Spacer()
                 QuitButton()
             }
@@ -248,7 +211,6 @@ struct TasksView: View {
                 ))
                 Divider()
                 Button("Sign Out") { auth.signOut() }
-                Button("Reset OAuth Client…") { auth.resetConfig() }
                 Divider()
                 Button("Quit GTasks") { NSApp.terminate(nil) }
             } label: {

@@ -123,7 +123,7 @@ final class LoopbackServer {
 
 @MainActor
 final class AuthManager: ObservableObject {
-    @Published private(set) var config: OAuthConfig?
+    let config: OAuthConfig?
     @Published private(set) var isSignedIn = false
     @Published private(set) var isAuthorizing = false
     @Published var errorMessage: String?
@@ -137,44 +137,31 @@ final class AuthManager: ObservableObject {
     private static let tokenURL = URL(string: "https://oauth2.googleapis.com/token")!
 
     init() {
-        if let id = Keychain.get("client_id"), let secret = Keychain.get("client_secret") {
-            config = OAuthConfig(clientID: id, clientSecret: secret)
-        }
+        config = Self.loadBundledConfig()
         isSignedIn = config != nil && Keychain.get("refresh_token") != nil
     }
 
     // MARK: Client config
 
-    func saveConfig(clientID: String, clientSecret: String) {
-        let id = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let secret = clientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-        Keychain.set("client_id", id)
-        Keychain.set("client_secret", secret)
-        config = OAuthConfig(clientID: id, clientSecret: secret)
-        errorMessage = nil
-    }
-
-    /// Accepts the JSON file Google Cloud Console offers for download ("client_secret_….json").
-    func importConfig(from url: URL) {
+    /// Reads the Google Cloud "Desktop app" client JSON. `scripts/build-app.sh` copies
+    /// `Resources/client_secret.json` into the app bundle; `swift run` reads it from the repo.
+    private static func loadBundledConfig() -> OAuthConfig? {
         struct File: Decodable {
             struct Client: Decodable { let client_id: String; let client_secret: String }
             let installed: Client?
             let web: Client?
         }
-        do {
-            let file = try JSONDecoder().decode(File.self, from: Data(contentsOf: url))
-            guard let c = file.installed ?? file.web else { throw AuthError.server("No client found in file.") }
-            saveConfig(clientID: c.client_id, clientSecret: c.client_secret)
-        } catch {
-            errorMessage = "Couldn't read that file: \(error.localizedDescription)"
+        let repoCopy = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources/client_secret.json")
+        let candidates = [Bundle.main.url(forResource: "client_secret", withExtension: "json"), repoCopy]
+        for case let url? in candidates {
+            guard let data = try? Data(contentsOf: url),
+                  let file = try? JSONDecoder().decode(File.self, from: data),
+                  let c = file.installed ?? file.web else { continue }
+            return OAuthConfig(clientID: c.client_id, clientSecret: c.client_secret)
         }
-    }
-
-    func resetConfig() {
-        signOut()
-        Keychain.set("client_id", nil)
-        Keychain.set("client_secret", nil)
-        config = nil
+        return nil
     }
 
     // MARK: Sign in / out

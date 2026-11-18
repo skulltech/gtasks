@@ -3,3 +3,7 @@ build/
 .swiftpm/
 *.xcodeproj
 .DS_Store
+
+# Google OAuth client (keep out of git)
+Resources/client_secret*.json
+!Resources/client_secret.example.json

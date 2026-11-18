@@ -19,7 +19,7 @@ Requires macOS 14+ and the Swift toolchain (Command Line Tools are enough; Xcode
 ./scripts/build-app.sh --install
 ```
 
-This builds `build/GTasks.app`, copies it to `/Applications`, and launches it. Leave out `--install` if you only want the build.
+This builds `build/GTasks.app`, copies it to `/Applications`, and launches it. Leave out `--install` if you only want the build. It needs `Resources/client_secret.json` first (see below).
 
 ## One-time Google setup (~3 minutes)
 
@@ -33,9 +33,10 @@ Google only lets apps reach your tasks through an OAuth client, so you create a 
    - For **External**: add your Gmail address under **Test users**, then under **Publishing status** click **Publish app** (set it to "In production").
      If you leave it in "Testing", Google expires the sign-in after 7 days and you'll have to sign in again every week. You don't need verification for personal use; Google will just show an "unverified app" warning once, which you can click through (**Advanced → Go to GTasks**).
 4. **APIs & Services → Credentials → Create credentials → OAuth client ID** → Application type **Desktop app** → Create → **Download JSON**.
-5. Open GTasks from the menu bar → **Import client JSON…** (or paste the client ID and secret) → **Sign in with Google**.
+5. Save the downloaded file as `Resources/client_secret.json` in this repo (it's gitignored; `Resources/client_secret.example.json` shows the shape).
+6. Run `./scripts/build-app.sh --install`, then open GTasks from the menu bar → **Sign in with Google**.
 
-The client ID, client secret and refresh token are stored in your login Keychain. Because the app is ad-hoc signed, macOS may ask for Keychain access the first time after each rebuild; click **Always Allow**.
+The build script copies the client JSON into the app bundle. Your Google refresh token is stored in the login Keychain. Because the app is ad-hoc signed, macOS may ask for Keychain access the first time after each rebuild; click **Always Allow**.
 
 ## Development
 
@@ -54,7 +55,7 @@ Code layout (`Sources/GTasks`):
 | File | What it does |
 | --- | --- |
 | `GTasksApp.swift` | App entry point and `MenuBarExtra` |
-| `Auth.swift` | OAuth (loopback redirect + PKCE), token refresh, Keychain storage |
+| `Auth.swift` | Loads the bundled OAuth client; sign-in (loopback redirect + PKCE), token refresh, Keychain storage |
 | `TasksAPI.swift` | Google Tasks REST v1 client |
 | `TaskStore.swift` | State, ordering, optimistic updates |
 | `Views.swift` | SwiftUI UI |
