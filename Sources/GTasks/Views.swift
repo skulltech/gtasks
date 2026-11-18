@@ -465,15 +465,17 @@ struct TaskRow: View {
             }
 
         }
-        // Hover actions float over the row so titles get the full width when they're hidden.
-        .overlay(alignment: .topTrailing) {
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .padding(.leading, task.parent != nil ? 28 : 0)
+        // Hover actions float over the row (vertically centred) so titles get the full width when hidden.
+        .overlay(alignment: .trailing) {
             HStack(spacing: 0) {
                 IconButton(systemName: "calendar", help: "Due date") { showDue = true }
                 IconButton(systemName: "trash", help: "Delete") { Task { await store.delete(task) } }
             }
             .padding(.horizontal, 2)
             .background(Capsule().fill(Color(nsColor: .windowBackgroundColor)).shadow(color: .black.opacity(0.15), radius: 2, y: 1))
-            .padding(.top, 4)
             .padding(.trailing, 6)
             .opacity(hovering && !editing ? 1 : 0)
             .allowsHitTesting(hovering && !editing)
@@ -484,9 +486,6 @@ struct TaskRow: View {
                 }
             }
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
-        .padding(.leading, task.parent != nil ? 28 : 0)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color.primary.opacity(hovering ? 0.06 : 0))
