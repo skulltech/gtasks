@@ -19,6 +19,9 @@ struct RootView: View {
             }
         }
         .frame(width: 380, height: 520)
+        // The default MenuBarExtra background is translucent glass, which washes out
+        // text when a bright window sits behind it. Use a solid, appearance-aware fill.
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
