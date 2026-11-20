@@ -11,6 +11,9 @@ final class TaskStore: ObservableObject {
     @Published private(set) var completing: Set<String> = []
     @Published private(set) var undoable: GTask?
     @Published var errorMessage: String?
+    /// The current calendar day. Due labels and sections are relative to it, so publishing a
+    /// new value after midnight makes every view regroup instead of showing stale buckets.
+    @Published private(set) var today = DueFormat.today
 
     let auth: AuthManager
     private let api: TasksAPI
@@ -35,6 +38,17 @@ final class TaskStore: ObservableObject {
                 }
             }
             .store(in: &bag)
+
+        NotificationCenter.default.publisher(for: .NSCalendarDayChanged)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.syncToday() }
+            .store(in: &bag)
+    }
+
+    /// Re-reads the date; call when the panel opens or the Mac wakes in case midnight passed.
+    func syncToday() {
+        let now = DueFormat.today
+        if now != today { today = now }
     }
 
     /// Tasks due today or earlier — shown as a badge in the menu bar.
@@ -51,13 +65,17 @@ final class TaskStore: ObservableObject {
         }
         NSWorkspace.shared.notificationCenter
             .publisher(for: NSWorkspace.didWakeNotification)
-            .sink { [weak self] _ in Task { await self?.refresh(force: true) } }
+            .sink { [weak self] _ in
+                self?.syncToday()
+                Task { await self?.refresh(force: true) }
+            }
             .store(in: &bag)
     }
 
     // MARK: Loading
 
     func refresh(force: Bool = false) async {
+        syncToday()
         guard auth.isSignedIn, !isLoading else { return }
         if !force && Date().timeIntervalSince(lastRefresh) < 15 { return }
         isLoading = true
